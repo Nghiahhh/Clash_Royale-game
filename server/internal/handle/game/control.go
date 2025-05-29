@@ -190,11 +190,11 @@ type UserDeck struct {
 	KingTower struct {
 		Name  string `bson:"name"`
 		Level int    `bson:"level,omitempty"`
-	} `bson:"king_Tower"`
+	} `bson:"king_tower"`
 	GuardTower struct {
 		Name  string `bson:"name"`
 		Level int    `bson:"level,omitempty"`
-	} `bson:"guard_Tower"`
+	} `bson:"guard_tower"`
 	Cards [8]struct {
 		Index int    `bson:"index"`
 		Name  string `bson:"name"`
@@ -469,6 +469,7 @@ func gameStart(match *session.MatchRoom) {
 					} else if player.Side == winner {
 						result = "win"
 					}
+					UpdateUserRewards(player.User.ID, result)
 					sendMessage(player.User.Client.Send, "end_game", "game_end", map[string]interface{}{
 						"result": result,
 					})
@@ -547,6 +548,7 @@ func updateGameState(gs *GameState) {
 				if player.Side == winner {
 					result = "win"
 				}
+				UpdateUserRewards(player.User.ID, result)
 				sendMessage(player.User.Client.Send, "end_game", "game_end", map[string]interface{}{
 					"result": result,
 				})
@@ -554,6 +556,78 @@ func updateGameState(gs *GameState) {
 		}
 		return
 	}
+}
+
+func UpdateUserRewards(userID int, result string) error {
+	var expGain, gold, gems int
+
+	switch result {
+	case "win":
+		expGain, gold, gems = 30, 200, 1
+	case "draw":
+		expGain, gold, gems = 10, 50, 0
+	case "lose":
+		expGain, gold, gems = 5, 5, 0
+	default:
+		return nil
+	}
+
+	// 1. Cộng reward ban đầu
+	_, err := db.DB.Exec(`
+		UPDATE user_stats
+		SET experience = experience + ?, gold = gold + ?, gems = gems + ?
+		WHERE id = ?
+	`, expGain, gold, gems, userID)
+	if err != nil {
+		log.Printf("❌ Error updating rewards: %v", err)
+		return err
+	}
+
+	// 2. Lấy lại experience và level hiện tại
+	var experience, level int
+	err = db.DB.QueryRow(`
+		SELECT experience, level
+		FROM user_stats
+		WHERE id = ?
+	`, userID).Scan(&experience, &level)
+	if err != nil {
+		log.Printf("❌ Error getting current stats: %v", err)
+		return err
+	}
+
+	// 3. Truy MongoDB để lấy requirement
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	collection := db.MongoDatabase.Collection("user_level_config")
+
+	var levelConfig struct {
+		Level              int `bson:"level"`
+		ExperienceRequired int `bson:"experience_required"`
+	}
+
+	err = collection.FindOne(ctx, bson.M{"level": level}).Decode(&levelConfig)
+	if err != nil {
+		return nil
+	}
+
+	// 4. Kiểm tra có đủ để lên cấp không
+	if experience >= levelConfig.ExperienceRequired {
+		newLevel := level + 1
+		newExperience := experience - levelConfig.ExperienceRequired
+
+		_, err = db.DB.Exec(`
+			UPDATE user_stats
+			SET level = ?, experience = ?
+			WHERE id = ?
+		`, newLevel, newExperience, userID)
+		if err != nil {
+			log.Printf("❌ Error updating level up: %v", err)
+			return err
+		}
+	}
+
+	return nil
 }
 
 func UpdateAliveStatus(gs *GameState) {
@@ -662,12 +736,14 @@ func SendToClient(user *session.User, event map[string]interface{}) {
 func updateElixir(gs *GameState) {
 	for side := 0; side < 2; side++ {
 		for _, player := range gs.Players[side] {
-			player.ElixirTimer += 1.0 / 30.0 // Tăng theo 30 tick = 1 giây
-			if player.ElixirTimer >= 1 {
-				if player.Elixir < 10 {
+			if player.Elixir < 10 {
+				player.ElixirTimer += float64(gs.Tick) / 1000 // Tăng theo 30 tick = 1 giây
+				if player.ElixirTimer >= 1 {
 					player.Elixir += 1
+					player.ElixirTimer -= 1
 				}
-				player.ElixirTimer -= 1
+			} else {
+				player.ElixirTimer = 0
 			}
 		}
 	}
@@ -1494,8 +1570,7 @@ func loadMapFromMongoDB(mapName string) [][]int {
 
 	// Temporary struct to hold the result
 	var result struct {
-		Name string  `bson:"name"`
-		Data [][]int `bson:"data"`
+		Data [][]int `bson:"tiles"`
 	}
 
 	// Find a single document that matches the filter
@@ -1529,7 +1604,7 @@ func getUserDeck(db *mongo.Database, user *session.User) error {
 	}
 
 	// Lấy dữ liệu KingTower từ MongoDB theo level vừa lấy được
-	kingTowerData, err := getTowerLevelInfo(db, deck.KingTower.Name, kingTowerLevel)
+	kingTowerData, err := getTowerLevelInfoKing(db, deck.KingTower.Name, kingTowerLevel)
 	if err != nil {
 		return err
 	}
@@ -1542,7 +1617,7 @@ func getUserDeck(db *mongo.Database, user *session.User) error {
 	}
 
 	// Lấy dữ liệu GuardTower tương tự
-	guardTowerData, err := getTowerLevelInfo(db, deck.GuardTower.Name, deck.GuardTower.Level)
+	guardTowerData, err := getTowerLevelInfoGuard(db, deck.GuardTower.Name, deck.GuardTower.Level)
 	if err != nil {
 		return err
 	}
@@ -1590,32 +1665,85 @@ func getKingTowerLevelFromMySQL(userID int) (int, error) {
 }
 
 // Ví dụ hàm getTowerLevelInfo lấy dữ liệu level Tower từ db (hoặc cache)
-func getTowerLevelInfo(db *mongo.Database, name string, level int) (session.TowerLevelInfo, error) {
-	collection := db.Collection("guard_Tower") // giả sử
+func getTowerLevelInfoGuard(db *mongo.Database, name string, level int) (session.TowerLevelInfo, error) {
+	collection := db.Collection("guard_tower") // giả sử
 	filter := bson.M{"name": name}
 	var TowerData struct {
-		Name   string
+		Name   string `bson:"name"`
+		Skill  string `bson:"skill"`
 		Levels []struct {
-			Level       int
-			Hp          int
-			Atk         int
-			Def         int
-			CritRate    float64
-			AttackSpeed float64
-			Range       float64
-			Skill       *string
-		}
+			Level       int     `bson:"level"`
+			Hp          int     `bson:"hp"`
+			Atk         int     `bson:"atk"`
+			Def         int     `bson:"def"`
+			CritRate    float64 `bson:"crit_rate"`
+			AttackSpeed float64 `bson:"attack_speed"`
+			Range       float64 `bson:"range"`
+		} `bson:"levels"`
 	}
+
 	err := collection.FindOne(context.Background(), filter).Decode(&TowerData)
 	if err != nil {
 		return session.TowerLevelInfo{}, err
 	}
+	// Tìm thông tin level cụ thể
 	for _, lvl := range TowerData.Levels {
 		if lvl.Level == level {
 			var skillInfo session.SkillLevelInfo
-			if lvl.Skill != nil && *lvl.Skill != "" {
-				skillInfo, _ = getSkillLevelInfo(db, *lvl.Skill, level)
+
+			// Nếu tower có skill, lấy thông tin skill theo level
+			if TowerData.Skill != "" {
+				skillInfo, _ = getSkillLevelInfo(db, TowerData.Skill, level)
 			}
+
+			// Trả về dữ liệu level
+			return session.TowerLevelInfo{
+				Skill:       skillInfo,
+				Hp:          lvl.Hp,
+				Atk:         lvl.Atk,
+				Def:         lvl.Def,
+				CritRate:    lvl.CritRate,
+				AttackSpeed: lvl.AttackSpeed,
+				Range:       lvl.Range,
+			}, nil
+		}
+	}
+	return session.TowerLevelInfo{}, errors.New("level not found")
+}
+
+// Ví dụ hàm getTowerLevelInfo lấy dữ liệu level Tower từ db (hoặc cache)
+func getTowerLevelInfoKing(db *mongo.Database, name string, level int) (session.TowerLevelInfo, error) {
+	collection := db.Collection("king_tower") // giả sử
+	filter := bson.M{"name": name}
+	var TowerData struct {
+		Name   string `bson:"name"`
+		Skill  string `bson:"skill"`
+		Levels []struct {
+			Level       int     `bson:"level"`
+			Hp          int     `bson:"hp"`
+			Atk         int     `bson:"atk"`
+			Def         int     `bson:"def"`
+			CritRate    float64 `bson:"crit_rate"`
+			AttackSpeed float64 `bson:"attack_speed"`
+			Range       float64 `bson:"range"`
+		} `bson:"levels"`
+	}
+
+	err := collection.FindOne(context.Background(), filter).Decode(&TowerData)
+	if err != nil {
+		return session.TowerLevelInfo{}, err
+	}
+	// Tìm thông tin level cụ thể
+	for _, lvl := range TowerData.Levels {
+		if lvl.Level == level {
+			var skillInfo session.SkillLevelInfo
+
+			// Nếu tower có skill, lấy thông tin skill theo level
+			if TowerData.Skill != "" {
+				skillInfo, _ = getSkillLevelInfo(db, TowerData.Skill, level)
+			}
+
+			// Trả về dữ liệu level
 			return session.TowerLevelInfo{
 				Skill:       skillInfo,
 				Hp:          lvl.Hp,
@@ -1646,8 +1774,8 @@ func getCardLevelInfo(db *mongo.Database, name string, level int) (session.CardL
 	switch cardMeta.Type {
 	case "troop":
 		var troopData struct {
-			Name   string
-			Mana   int
+			Mana   int    `bson:"mana"`
+			Skill  string `bson:"skill"`
 			Levels []struct {
 				Level       int     `bson:"level"`
 				Hp          int     `bson:"hp"`
@@ -1659,14 +1787,20 @@ func getCardLevelInfo(db *mongo.Database, name string, level int) (session.CardL
 				Speed       float64 `bson:"speed"`
 			}
 		}
-		err := db.Collection("troops").FindOne(context.Background(), filter).Decode(&troopData)
+		err := db.Collection("cards").FindOne(context.Background(), filter).Decode(&troopData)
 		if err != nil {
 			return session.CardLevelInfo{}, "", err
+		}
+
+		var skillInfo session.SkillLevelInfo
+		if troopData.Skill != "" {
+			skillInfo, _ = getSkillLevelInfo(db, troopData.Skill, level)
 		}
 
 		for _, lvl := range troopData.Levels {
 			if lvl.Level == level {
 				return session.CardLevelInfo{
+					Skill:       skillInfo,
 					Mana:        troopData.Mana,
 					Hp:          lvl.Hp,
 					Atk:         lvl.Atk,
@@ -1682,21 +1816,26 @@ func getCardLevelInfo(db *mongo.Database, name string, level int) (session.CardL
 
 	case "spell":
 		var spellData struct {
-			Mana   int `bson:"mana"`
-			Name   string
+			Mana   int    `bson:"mana"`
+			Skill  string `bson:"skill"`
 			Levels []struct {
 				Level  int     `bson:"level"`
 				Radius float64 `bson:"radius"`
 			}
 		}
-		err := db.Collection("spells").FindOne(context.Background(), filter).Decode(&spellData)
+		err := db.Collection("cards").FindOne(context.Background(), filter).Decode(&spellData)
 		if err != nil {
 			return session.CardLevelInfo{}, "", err
 		}
 
+		var skillInfo session.SkillLevelInfo
+		if spellData.Skill != "" {
+			skillInfo, _ = getSkillLevelInfo(db, spellData.Skill, level)
+		}
 		for _, lvl := range spellData.Levels {
 			if lvl.Level == level {
 				return session.CardLevelInfo{
+					Skill:  skillInfo,
 					Mana:   spellData.Mana,
 					Radius: lvl.Radius,
 				}, "spell", nil

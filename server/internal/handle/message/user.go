@@ -248,8 +248,8 @@ func HandleRegister(c *types.Client, incoming utils.IncomingMessage) {
 
 	userCards := bson.M{
 		"user_id":     userID,
-		"king_tower":  []bson.M{{"name": "King Tower"}},
-		"guard_tower": []bson.M{{"name": "Guard Tower", "level": 1, "count": 0}},
+		"king_tower":  []bson.M{{"name": "King_Tower"}},
+		"guard_tower": []bson.M{{"name": "Guard_Tower", "level": 1, "count": 0}},
 		"cards": []bson.M{
 			{"name": "Pawn", "level": 1, "count": 0},
 			{"name": "Bishop", "level": 1, "count": 0},
@@ -264,8 +264,8 @@ func HandleRegister(c *types.Client, incoming utils.IncomingMessage) {
 
 	userDeck := bson.M{
 		"user_id":     userID,
-		"king_tower":  bson.M{"name": "King Tower"},
-		"guard_tower": bson.M{"name": "Guard Tower", "level": 1},
+		"king_tower":  bson.M{"name": "King_Tower"},
+		"guard_tower": bson.M{"name": "Guard_Tower", "level": 1},
 		"cards": []bson.M{
 			{"index": 1, "name": "Pawn", "level": 1},
 			{"index": 2, "name": "Bishop", "level": 1},
