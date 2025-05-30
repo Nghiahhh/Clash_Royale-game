@@ -1,0 +1,124 @@
+[{
+  "_id": {
+    "$oid": "68332b14a43d6bc3d5fda303"
+  },
+  "name": "fireball_blast",
+  "type": "damage",
+  "time": 1,
+  "effect_speed": 2,
+  "levels": [
+    {
+      "level": 1,
+      "value": 40
+    },
+    {
+      "level": 2,
+      "value": 50
+    },
+    {
+      "level": 3,
+      "value": 60
+    },
+    {
+      "level": 4,
+      "value": 70
+    },
+    {
+      "level": 5,
+      "value": 80
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "68332b31a43d6bc3d5fda305"
+  },
+  "name": "queen_heal",
+  "type": "heal",
+  "time": 1,
+  "effect_speed": 0,
+  "levels": [
+    {
+      "level": 1,
+      "value": 20
+    },
+    {
+      "level": 2,
+      "value": 25
+    },
+    {
+      "level": 3,
+      "value": 30
+    },
+    {
+      "level": 4,
+      "value": 35
+    },
+    {
+      "level": 5,
+      "value": 40
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "6833300da43d6bc3d5fda324"
+  },
+  "name": "healing_light",
+  "type": "heal",
+  "time": 1,
+  "effect_speed": 2,
+  "levels": [
+    {
+      "level": 1,
+      "value": 150
+    },
+    {
+      "level": 2,
+      "value": 180
+    },
+    {
+      "level": 3,
+      "value": 210
+    },
+    {
+      "level": 4,
+      "value": 240
+    },
+    {
+      "level": 5,
+      "value": 270
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "68333165a43d6bc3d5fda32c"
+  },
+  "name": "royal_shield",
+  "type": "shield",
+  "time": 1,
+  "effect_speed": 0,
+  "levels": [
+    {
+      "level": 1,
+      "value": 100
+    },
+    {
+      "level": 2,
+      "value": 120
+    },
+    {
+      "level": 3,
+      "value": 140
+    },
+    {
+      "level": 4,
+      "value": 160
+    },
+    {
+      "level": 5,
+      "value": 180
+    }
+  ]
+}]

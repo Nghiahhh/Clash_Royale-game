@@ -1,0 +1,105 @@
+[{
+  "_id": {
+    "$oid": "6832ba9ea43d6bc3d5fda29a"
+  },
+  "level": 1,
+  "experience_required": 100
+},
+{
+  "_id": {
+    "$oid": "6832ba9ea43d6bc3d5fda29b"
+  },
+  "level": 2,
+  "experience_required": 300
+},
+{
+  "_id": {
+    "$oid": "6832ba9ea43d6bc3d5fda29c"
+  },
+  "level": 3,
+  "experience_required": 600
+},
+{
+  "_id": {
+    "$oid": "6832ba9ea43d6bc3d5fda29d"
+  },
+  "level": 4,
+  "experience_required": 1000
+},
+{
+  "_id": {
+    "$oid": "6832ba9ea43d6bc3d5fda29e"
+  },
+  "level": 5,
+  "experience_required": 1500
+},
+{
+  "_id": {
+    "$oid": "6832ba9ea43d6bc3d5fda29f"
+  },
+  "level": 6,
+  "experience_required": 2100
+},
+{
+  "_id": {
+    "$oid": "6832ba9ea43d6bc3d5fda2a0"
+  },
+  "level": 7,
+  "experience_required": 2800
+},
+{
+  "_id": {
+    "$oid": "6832ba9ea43d6bc3d5fda2a1"
+  },
+  "level": 8,
+  "experience_required": 3600
+},
+{
+  "_id": {
+    "$oid": "6832ba9ea43d6bc3d5fda2a2"
+  },
+  "level": 9,
+  "experience_required": 4500
+},
+{
+  "_id": {
+    "$oid": "6832ba9ea43d6bc3d5fda2a3"
+  },
+  "level": 10,
+  "experience_required": 5500
+},
+{
+  "_id": {
+    "$oid": "6832ba9ea43d6bc3d5fda2a4"
+  },
+  "level": 11,
+  "experience_required": 6600
+},
+{
+  "_id": {
+    "$oid": "6832ba9ea43d6bc3d5fda2a5"
+  },
+  "level": 12,
+  "experience_required": 7800
+},
+{
+  "_id": {
+    "$oid": "6832ba9ea43d6bc3d5fda2a6"
+  },
+  "level": 13,
+  "experience_required": 9100
+},
+{
+  "_id": {
+    "$oid": "6832ba9ea43d6bc3d5fda2a7"
+  },
+  "level": 14,
+  "experience_required": 10500
+},
+{
+  "_id": {
+    "$oid": "6832ba9ea43d6bc3d5fda2a8"
+  },
+  "level": 15,
+  "experience_required": 0
+}]

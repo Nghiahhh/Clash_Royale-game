@@ -1,0 +1,168 @@
+[{
+  "_id": {
+    "$oid": "6833de0aa43d6bc3d5fda395"
+  },
+  "user_id": 0,
+  "king_tower": {
+    "name": "King Tower"
+  },
+  "guard_tower": {
+    "name": "Guard Tower",
+    "level": 1,
+    "count": 0
+  },
+  "cards": [
+    {
+      "index": 1,
+      "name": "Pawn",
+      "level": 1
+    },
+    {
+      "index": 2,
+      "name": "Bishop",
+      "level": 1
+    },
+    {
+      "index": 3,
+      "name": "Rook",
+      "level": 1
+    },
+    {
+      "index": 4,
+      "name": "Knight",
+      "level": 1
+    },
+    {
+      "index": 5,
+      "name": "Prince",
+      "level": 1
+    },
+    {
+      "index": 6,
+      "name": "Queen",
+      "level": 1
+    },
+    {
+      "index": 7,
+      "name": "Fireball",
+      "level": 1
+    },
+    {
+      "index": 8,
+      "name": "Healing Light",
+      "level": 1
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "6833f40a2b4b6fe17bf92476"
+  },
+  "user_id": 5,
+  "king_tower": {
+    "name": "King Tower"
+  },
+  "guard_tower": {
+    "name": "Guard Tower",
+    "level": 1,
+    "count": 0
+  },
+  "cards": [
+    {
+      "index": 1,
+      "name": "King",
+      "level": 1
+    },
+    {
+      "index": 2,
+      "name": "Bishop",
+      "level": 1
+    },
+    {
+      "index": 3,
+      "name": "Rook",
+      "level": 1
+    },
+    {
+      "index": 4,
+      "name": "Knight",
+      "level": 1
+    },
+    {
+      "index": 5,
+      "name": "Prince",
+      "level": 1
+    },
+    {
+      "index": 6,
+      "name": "Queen",
+      "level": 1
+    },
+    {
+      "index": 7,
+      "name": "Fireball",
+      "level": 1
+    },
+    {
+      "index": 8,
+      "name": "Healing Light",
+      "level": 1
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "68344068e85ef1d27b15e68f"
+  },
+  "user_id": 6,
+  "king_tower": {
+    "name": "King Tower"
+  },
+  "guard_tower": {
+    "name": "Guard Tower",
+    "level": 1,
+    "count": 0
+  },
+  "cards": [
+    {
+      "index": 1,
+      "name": "Pawn",
+      "level": 1
+    },
+    {
+      "level": 1,
+      "index": 2,
+      "name": "Bishop"
+    },
+    {
+      "index": 3,
+      "name": "Rook",
+      "level": 1
+    },
+    {
+      "index": 4,
+      "name": "Knight",
+      "level": 1
+    },
+    {
+      "name": "Prince",
+      "level": 1,
+      "index": 5
+    },
+    {
+      "index": 6,
+      "name": "Queen",
+      "level": 1
+    },
+    {
+      "index": 7,
+      "name": "Fireball",
+      "level": 1
+    },
+    {
+      "index": 8,
+      "name": "Healing Light",
+      "level": 1
+    }
+  ]
+}]

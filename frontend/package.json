@@ -1,0 +1,32 @@
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^7.1.0",
+    "@mui/material": "^7.1.0",
+    "@reduxjs/toolkit": "^2.8.2",
+    "@types/react-beautiful-dnd": "^13.1.8",
+    "axios": "^1.9.0",
+    "react-beautiful-dnd": "^13.1.1",
+    "react-redux": "^9.2.0",
+    "react-router-dom": "^7.6.1",
+    "socket.io-client": "^4.8.1",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.3",
+    "@vue/tsconfig": "^0.7.0",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5",
+    "vue-tsc": "^2.2.8"
+  }
+}
