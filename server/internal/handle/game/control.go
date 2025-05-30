@@ -244,7 +244,7 @@ func gameStart(match *session.MatchRoom) {
 
 	// ⏳ Thời gian trận đấu tối đa, ví dụ 3 phút
 	gameTimer := time.NewTimer(3 * time.Minute)
-	ticker := time.NewTicker(time.Duration(gameState.Tick) * time.Millisecond)
+	ticker := time.NewTicker(time.Duration(gameState.Tick) * 10 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -255,97 +255,97 @@ func gameStart(match *session.MatchRoom) {
 		case data := <-matchRoom:
 			var action map[string]interface{}
 			if err := json.Unmarshal(data, &action); err != nil {
-				log.Println("Invalid matchRoom data:", err)
+				log.Printf("Error unmarshaling action: %v", err)
 				continue
 			}
 
 			actionType, ok := action["type"].(string)
 			if !ok {
-				log.Println("Missing or invalid action type")
+				log.Printf("Invalid action type: %v", action["type"])
 				continue
 			}
 
 			switch actionType {
 			case "release":
-				// Lấy phần "data" (kiểu interface{})
 				dataMap, ok := action["data"].(map[string]interface{})
 				if !ok {
-					log.Println("Missing or invalid data field in release action")
+					log.Printf("Invalid data format for release action: %v", action["data"])
 					continue
 				}
 
-				// Marshal lại dataMap thành JSON để unmarshal tiếp vào struct
 				dataBytes, err := json.Marshal(dataMap)
 				if err != nil {
-					log.Println("Failed to marshal data field:", err)
+					log.Printf("Error marshaling data for release action: %v", err)
 					continue
 				}
 
 				var releaseData ReleaseActionData
 				if err := json.Unmarshal(dataBytes, &releaseData); err != nil {
-					log.Println("Failed to unmarshal release action data:", err)
+					log.Printf("Error unmarshaling release action data: %v", err)
 					continue
 				}
 
 				var player PlayerState
+				var playerIndex int
+				var playerSubIndex int
 				top := false
-				for i, p := range gameState.Players {
-					for _, ps := range p {
-						if ps.User.ID == releaseData.UserID {
-							player = *ps
+				found := false
+				for i, group := range gameState.Players {
+					for j, p := range group {
+						if p.User.ID == releaseData.UserID {
+							player = *p
+							playerIndex = i
+							playerSubIndex = j
 							if i == 0 {
 								top = true
 							}
-
+							found = true
 							break
 						}
 					}
+					if found {
+						break
+					}
 				}
 
-				if player.User == nil {
-					sendError(matchRoom, releaseData.MsgID, "user_not_found", "User not found in game state")
+				if !found || player.User == nil {
+					log.Printf("Player with UserID %d not found in game state", releaseData.UserID)
 					continue
 				}
 
+				// Kiểm tra bài trong tay
 				for _, id := range player.Hand {
 					if id == releaseData.CardID {
+						released := false
+
+						// Troops
 						for _, card := range player.User.DataGame.Troops {
 							if card.Index == releaseData.CardID {
-								// Kiểm tra xem tọa độ có nằm trong map không
 								if releaseData.Y < 0 || releaseData.Y >= len(gameState.Map) ||
 									releaseData.X < 0 || releaseData.X >= len(gameState.Map[0])/2 {
-									sendError(matchRoom, releaseData.MsgID, "invalid_position", "Out of map bounds")
-									continue
+									sendError(player.User.Client.Send, releaseData.MsgID, "invalid_position", "Out of map bounds")
+									break
 								}
 
-								// Kiểm tra xem tile tại vị trí đó có hợp lệ không (ví dụ chỉ cho đặt trên tile loại 1)
-								validTiles := map[int]bool{
-									1: true, // ví dụ: 1 là tile hợp lệ để đặt card
-									// nếu bạn cho phép nhiều loại tile: thêm ở đây, ví dụ 3, 4,...
-								}
-
+								validTiles := map[int]bool{1: true}
 								tileValue := gameState.Map[releaseData.Y][releaseData.X]
 								if !validTiles[tileValue] {
-									sendError(matchRoom, releaseData.MsgID, "invalid_position", "Invalid tile type for card release")
-									continue
+									sendError(player.User.Client.Send, releaseData.MsgID, "invalid_position", "Invalid tile type for card release")
+									break
 								}
 
-								// Kiểm tra xem có đủ elixir không
 								if player.Elixir < float64(card.Info.Mana) {
-									sendError(matchRoom, releaseData.MsgID, "not_enough_elixir", "Not enough elixir to release card")
-									continue
+									sendError(player.User.Client.Send, releaseData.MsgID, "not_enough_elixir", "Not enough elixir to release card")
+									break
 								}
 
-								// Trừ elixir
 								player.Elixir -= float64(card.Info.Mana)
 
-								x := releaseData.X
-								y := releaseData.Y
+								x, y := releaseData.X, releaseData.Y
 								if !top {
-									// Nếu là bên dưới, đảo ngược tọa độ
-									x, y = MirrorPosition(releaseData.X, releaseData.Y, len(gameState.Map), len(gameState.Map[0]))
+									x, y = MirrorPosition(x, y, len(gameState.Map), len(gameState.Map[0]))
 								}
-								// Cập nhật vị trí của quân bài
+
 								troop := Troop{
 									HP:          card.Info.Hp,
 									Time_attack: 0,
@@ -360,99 +360,83 @@ func gameStart(match *session.MatchRoom) {
 								allies := Allies{
 									ID:     uuid.New().String(),
 									Type:   "troop",
-									Active: true,
+									Alive:  true,
 									Troops: troop,
 								}
 
 								gameState.Allies[player.Side] = append(gameState.Allies[player.Side], allies)
 
 								UpdateHandAfterPlay(&player, releaseData.CardID)
-
-								SendDeckToClients(player, releaseData.MsgID)
+								SendDeckToClients(&player, releaseData.MsgID)
+								released = true
 								break
 							}
-
 						}
 
-						for _, card := range player.User.DataGame.Spells {
-							if card.Index == releaseData.CardID {
-								// Kiểm tra xem tọa độ có nằm trong map không
-								if releaseData.Y < 0 || releaseData.Y >= len(gameState.Map) ||
-									releaseData.X < 0 || releaseData.X >= len(gameState.Map[0]) {
-									sendError(matchRoom, releaseData.MsgID, "invalid_position", "Out of map bounds")
-									continue
+						// Spells
+						if !released {
+							for _, card := range player.User.DataGame.Spells {
+								if card.Index == releaseData.CardID {
+									if releaseData.Y < 0 || releaseData.Y >= len(gameState.Map) ||
+										releaseData.X < 0 || releaseData.X >= len(gameState.Map[0]) {
+										sendError(player.User.Client.Send, releaseData.MsgID, "invalid_position", "Out of map bounds")
+										break
+									}
+
+									validTiles := map[int]bool{1: true, 3: true, 4: true}
+									tileValue := gameState.Map[releaseData.Y][releaseData.X]
+									if !validTiles[tileValue] {
+										sendError(player.User.Client.Send, releaseData.MsgID, "invalid_position", "Invalid tile type for card release")
+										break
+									}
+
+									if player.Elixir < float64(card.Info.Mana) {
+										sendError(player.User.Client.Send, releaseData.MsgID, "not_enough_elixir", "Not enough elixir to release card")
+										break
+									}
+
+									player.Elixir -= float64(card.Info.Mana)
+
+									x, y := releaseData.X, releaseData.Y
+									if !top {
+										x, y = MirrorPosition(x, y, len(gameState.Map), len(gameState.Map[0]))
+									}
+
+									troop := Troop{
+										HP:          card.Info.Hp,
+										Time_attack: 0,
+										Shield:      card.Info.Shield,
+										Location:    Position{X: x, Y: y, long: 1, wide: 1},
+										Skill_using: false,
+										CardInfo:    card,
+										Skill_info:  card.Info.Skill,
+										TargetID:    "",
+									}
+
+									allies := Allies{
+										ID:     uuid.New().String(),
+										Type:   "troop",
+										Alive:  true,
+										Troops: troop,
+									}
+
+									gameState.Allies[player.Side] = append(gameState.Allies[player.Side], allies)
+
+									UpdateHandAfterPlay(&player, releaseData.CardID)
+									SendDeckToClients(&player, releaseData.MsgID)
+									break
 								}
-
-								// Kiểm tra xem tile tại vị trí đó có hợp lệ không (ví dụ chỉ cho đặt trên tile loại 1)
-								validTiles := map[int]bool{
-									1: true, // ví dụ: 1 là tile hợp lệ để đặt card
-									3: true, // ví dụ: 3 là tile hợp lệ để đặt spell
-									4: true, // ví dụ: 4 là tile hợp lệ để đặt spell
-									// nếu bạn cho phép nhiều loại tile: thêm ở đây, ví dụ 3, 4,...
-								}
-
-								tileValue := gameState.Map[releaseData.Y][releaseData.X]
-								if !validTiles[tileValue] {
-									sendError(matchRoom, releaseData.MsgID, "invalid_position", "Invalid tile type for card release")
-									continue
-								}
-
-								// Kiểm tra xem có đủ elixir không
-								if player.Elixir < float64(card.Info.Mana) {
-									sendError(matchRoom, releaseData.MsgID, "not_enough_elixir", "Not enough elixir to release card")
-									continue
-								}
-
-								// Trừ elixir
-								player.Elixir -= float64(card.Info.Mana)
-
-								x := releaseData.X
-								y := releaseData.Y
-								if !top {
-									// Nếu là bên dưới, đảo ngược tọa độ
-									x, y = MirrorPosition(releaseData.X, releaseData.Y, len(gameState.Map), len(gameState.Map[0]))
-								}
-								// Cập nhật vị trí của quân bài
-								troop := Troop{
-									HP:          card.Info.Hp,
-									Time_attack: 0,
-									Shield:      card.Info.Shield,
-									Location:    Position{X: x, Y: y, long: 1, wide: 1},
-									Skill_using: false,
-									CardInfo:    card,
-									Skill_info:  card.Info.Skill,
-									TargetID:    "",
-								}
-
-								allies := Allies{
-									ID:     uuid.New().String(),
-									Type:   "troop",
-									Active: true,
-									Troops: troop,
-								}
-
-								gameState.Allies[player.Side] = append(gameState.Allies[player.Side], allies)
-
-								UpdateHandAfterPlay(&player, releaseData.CardID)
-
-								SendDeckToClients(player, releaseData.MsgID)
-								break
 							}
-
 						}
+
+						// Cập nhật player sau khi thay đổi elixir
+						gameState.Players[playerIndex][playerSubIndex] = &player
+						break
 					}
 				}
 
 			default:
-				log.Println("Unknown action type:", actionType)
-				// Nếu có msg_id thì truyền, không thì rỗng string
-				msgID := ""
-				if d, ok := action["data"].(map[string]interface{}); ok {
-					if id, ok := d["msg_id"].(string); ok {
-						msgID = id
-					}
-				}
-				sendError(matchRoom, msgID, "unknown_action", "Unknown action type: "+actionType)
+
 			}
 
 		case <-gameTimer.C:
@@ -576,7 +560,7 @@ func UpdateUserRewards(userID int, result string) error {
 	_, err := db.DB.Exec(`
 		UPDATE user_stats
 		SET experience = experience + ?, gold = gold + ?, gems = gems + ?
-		WHERE id = ?
+		WHERE user_id = ?
 	`, expGain, gold, gems, userID)
 	if err != nil {
 		log.Printf("❌ Error updating rewards: %v", err)
@@ -588,7 +572,7 @@ func UpdateUserRewards(userID int, result string) error {
 	err = db.DB.QueryRow(`
 		SELECT experience, level
 		FROM user_stats
-		WHERE id = ?
+		WHERE user_id = ?
 	`, userID).Scan(&experience, &level)
 	if err != nil {
 		log.Printf("❌ Error getting current stats: %v", err)
@@ -619,7 +603,7 @@ func UpdateUserRewards(userID int, result string) error {
 		_, err = db.DB.Exec(`
 			UPDATE user_stats
 			SET level = ?, experience = ?
-			WHERE id = ?
+			WHERE user_id = ?
 		`, newLevel, newExperience, userID)
 		if err != nil {
 			log.Printf("❌ Error updating level up: %v", err)
@@ -638,21 +622,21 @@ func UpdateAliveStatus(gs *GameState) {
 			// Troop
 			if unit.Type == "troop" {
 				if unit.Troops.HP <= 0 {
-					unit.Active = false
+					unit.Alive = false
 				}
 			}
 
 			// Guard
 			if unit.Type == "guard" {
 				if unit.Guard.HP <= 0 {
-					unit.Active = false
+					unit.Alive = false
 				}
 			}
 
 			// King
 			if unit.Type == "king" {
 				if unit.King.HP <= 0 {
-					unit.Active = false
+					unit.Alive = false
 				}
 			}
 		}
@@ -720,7 +704,7 @@ func CreateUpdateEvent(gs *GameState, side int) map[string]interface{} {
 
 	player := gs.Players[side][0]
 	return map[string]interface{}{
-		"map":      displayMap,
+		// "map":      displayMap,
 		"allies":   displayAllies,
 		"elixir":   player.Elixir,
 		"hand":     player.Hand,
@@ -755,7 +739,7 @@ func handleCombat(gs *GameState) {
 
 		for i := range gs.Allies[side] {
 			attacker := &gs.Allies[side][i]
-			if !attacker.Active {
+			if !attacker.Alive {
 				continue
 			}
 
@@ -793,6 +777,8 @@ type Node struct {
 	Prev *Node
 }
 
+// Tọa độ trên bản đồ
+// Hàm tìm đường từ start đến goal (dùng Position thay cho Coord)
 func bfsPath(gs *GameState, start, goal Position) []Position {
 	h, w := len(gs.Map), len(gs.Map[0])
 	visited := make([][]bool, h)
@@ -800,30 +786,39 @@ func bfsPath(gs *GameState, start, goal Position) []Position {
 		visited[i] = make([]bool, w)
 	}
 
-	dirs := []Position{
-		{X: 0, Y: -1}, // up
-		{X: 0, Y: 1},  // down
-		{X: -1, Y: 0}, // left
-		{X: 1, Y: 0},  // right
+	// 4 hướng: lên, xuống, trái, phải
+	dirs := []struct{ X, Y int }{
+		{X: -1, Y: 0},
+		{X: 1, Y: 0},
+		{X: 0, Y: -1},
+		{X: 0, Y: 1},
+	}
+
+	type Node struct {
+		Pos  Position
+		Prev *Node
 	}
 
 	queue := []Node{{Pos: start}}
-	visited[start.Y][start.X] = true
+	visited[start.X][start.Y] = true
 	var endNode *Node
 
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
 
-		if current.Pos == goal {
-			endNode = &current
+		if current.Pos.X == goal.X && current.Pos.Y == goal.Y {
+			nodeCopy := current
+			endNode = &nodeCopy
 			break
 		}
 
 		for _, d := range dirs {
-			ny, nx := current.Pos.Y+d.Y, current.Pos.X+d.X
-			if ny >= 0 && ny < h && nx >= 0 && nx < w && !visited[ny][nx] && gs.Map[ny][nx] == 1 {
-				visited[ny][nx] = true
+			nx := current.Pos.X + d.X
+			ny := current.Pos.Y + d.Y
+			if nx >= 0 && nx < h && ny >= 0 && ny < w &&
+				!visited[nx][ny] && gs.Map[nx][ny] == 1 {
+				visited[nx][ny] = true
 				next := Node{Pos: Position{X: nx, Y: ny}, Prev: &current}
 				queue = append(queue, next)
 			}
@@ -834,11 +829,12 @@ func bfsPath(gs *GameState, start, goal Position) []Position {
 		return nil // không tìm được đường
 	}
 
-	// Truy vết đường đi
+	// Truy vết đường đi từ goal về start
 	var path []Position
 	for node := endNode; node != nil; node = node.Prev {
 		path = append([]Position{node.Pos}, path...)
 	}
+
 	return path
 }
 
@@ -847,17 +843,24 @@ func moveTowards(gs *GameState, attacker *Allies, targetID string) {
 		return
 	}
 	target := getAllyByID(gs, targetID)
-	if target == nil || !target.Active {
+	if target == nil || !target.Alive {
 		return
 	}
 
 	from := attacker.GetLocation()
 	to := target.GetLocation()
 
+	log.Printf("Moving %s from %v to %v", attacker.Type, from, to)
 	path := bfsPath(gs, from, to)
+	log.Printf("Path found: %v", path)
 	if len(path) >= 2 {
 		// path[0] là vị trí hiện tại, path[1] là bước kế tiếp
-		nextStep := path[1]
+		nextStep := Position{
+			X:    path[1].X,
+			Y:    path[1].Y,
+			long: attacker.GetLocation().long,
+			wide: attacker.GetLocation().wide,
+		}
 		attacker.SetLocation(nextStep)
 	}
 }
@@ -891,9 +894,10 @@ func handleTroopCombat(gs *GameState, troop *Allies, enemySide int) {
 		t.Time_attack += 0.5
 		if t.Time_attack >= float32(1.0/t.CardInfo.Info.AttackSpeed) {
 			target := getAllyByID(gs, t.TargetID)
-			if target != nil && target.Active {
+			if target != nil && target.Alive {
 				damage := calculateDamage(troop, target)
 				target.ReduceHP(damage)
+				log.Println("Attacking target:", target.ID, "with damage:", damage)
 				t.Time_attack -= float32(1.0 / t.CardInfo.Info.AttackSpeed)
 
 				if t.Skill_info.Name != "" && !t.Skill_using {
@@ -922,6 +926,7 @@ func handleGuardCombat(gs *GameState, guard *Allies, enemySide int) {
 			target := getAllyByID(gs, g.TargetID)
 			if target != nil && target.IsAlive() {
 				damage := calculateDamage(guard, target)
+				log.Println("Attacking target:", target.ID, "with damage:", damage)
 				target.ReduceHP(damage)
 				g.Time_attack -= float32(1.0 / g.GuardInfo.Info.AttackSpeed)
 			}
@@ -945,6 +950,7 @@ func handleKingCombat(gs *GameState, king *Allies, enemySide int) {
 			target := getAllyByID(gs, k.TargetID)
 			if target != nil && target.IsAlive() {
 				damage := calculateDamage(king, target)
+				log.Println("Attacking target:", target.ID, "with damage:", damage)
 				target.ReduceHP(damage)
 				k.Time_attack -= float32(1.0 / k.KingInfo.Info.AttackSpeed)
 			}
@@ -957,11 +963,12 @@ func handleSpellEffect(gs *GameState, spell *Allies) {
 	s.Time_effect += 0.5
 	if s.Time_effect >= 1.0/float32(s.Skill_info.Effect_speed) {
 		if s.Time < s.Skill_info.Time {
+			log.Println("Applying spell effect at location:", s.Location, "with skill:", s.Skill_info.Name)
 			ApplySkillArea(gs, s.Location, &s.Skill_info)
 			s.Time_effect -= 1.0 / float32(s.Skill_info.Effect_speed)
 			s.Time += 1
 		}
-		spell.Active = false
+		spell.Alive = false
 	}
 }
 
@@ -987,11 +994,11 @@ func findNearestTargetID(gs *GameState, from Position, enemySide int, rangeVal f
 	nearestID := ""
 	for i := range gs.Allies[enemySide] {
 		target := &gs.Allies[enemySide][i]
-		if !target.Active || target.Type == "spell" || target.Type == "skill" {
+		if !target.Alive || target.Type == "spell" {
 			continue
 		}
 		dist := GetMinDistanceBetweenAreas(from, target.GetLocation(), enemySide)
-		if dist <= rangeVal && dist < minDist {
+		if dist < minDist {
 			minDist = dist
 			nearestID = target.ID
 		}
@@ -1161,13 +1168,13 @@ func (a *Allies) ReduceHP(amount int) {
 func (a *Allies) IsAlive() bool {
 	switch a.Type {
 	case "troop":
-		return a.Troops.HP > 0 && a.Active
+		return a.Troops.HP > 0 && a.Alive
 	case "guard_tower":
-		return a.Guard.HP > 0 && a.Active
+		return a.Guard.HP > 0 && a.Alive
 	case "king_tower":
-		return a.King.HP > 0 && a.Active
+		return a.King.HP > 0 && a.Alive
 	default:
-		return a.Active
+		return a.Alive
 	}
 }
 
@@ -1234,7 +1241,7 @@ func UpdateHandAfterPlay(player *PlayerState, usedCardID int) {
 	}
 }
 
-func SendDeckToClients(player PlayerState, id string) {
+func SendDeckToClients(player *PlayerState, id string) {
 	deckData := map[string]interface{}{
 		"hand":        player.Hand,
 		"nextCard":    player.NextCard,
@@ -1262,7 +1269,7 @@ func CleanupAllies(gs *GameState) {
 	for side := 0; side < 2; side++ {
 		var alive []Allies
 		for _, ally := range gs.Allies[side] {
-			if !ally.Active {
+			if !ally.Alive {
 				// Nếu là guard tower đã chết, làm sạch vùng chiếm dụng
 				if ally.Type == "guard_tower" {
 					loc := ally.Guard.Location
@@ -1309,7 +1316,7 @@ func MirrorPosition(x, y, rows, cols int) (int, int) {
 type Allies struct {
 	ID     string
 	Type   string `json:"type"`
-	Active bool
+	Alive  bool
 	Troops Troop
 	Spells Spell
 	King   King
@@ -1434,8 +1441,9 @@ func NewGameState(match *session.MatchRoom) *GameState {
 
 	if len(topPlayers) == 1 && len(botPlayers) == 1 {
 		topLeftGuardTower = Allies{
-			ID:   uuid.New().String(), // Replace with uuid.New().String() if you want a UUID
-			Type: "guard_tower",
+			ID:    uuid.New().String(), // Replace with uuid.New().String() if you want a UUID
+			Type:  "guard_tower",
+			Alive: true,
 			Guard: Guard{
 				HP:          topPlayers[0].User.DataGame.GuardTower.Info.Hp,
 				Shield:      topPlayers[0].User.DataGame.GuardTower.Info.Shield,
@@ -1448,8 +1456,9 @@ func NewGameState(match *session.MatchRoom) *GameState {
 			},
 		}
 		topRightGuardTower = Allies{
-			ID:   uuid.New().String(), // Replace with uuid.New().String() if you want a UUID
-			Type: "guard_tower",
+			ID:    uuid.New().String(), // Replace with uuid.New().String() if you want a UUID
+			Type:  "guard_tower",
+			Alive: true,
 			Guard: Guard{
 				HP:          topPlayers[0].User.DataGame.GuardTower.Info.Hp,
 				Shield:      topPlayers[0].User.DataGame.GuardTower.Info.Shield,
@@ -1462,8 +1471,9 @@ func NewGameState(match *session.MatchRoom) *GameState {
 			},
 		}
 		topKingTower = Allies{
-			ID:   uuid.New().String(), // Replace with uuid.New().String() if you want a UUID
-			Type: "king_tower",
+			ID:    uuid.New().String(), // Replace with uuid.New().String() if you want a UUID
+			Type:  "king_tower",
+			Alive: true,
 			King: King{
 				HP:          topPlayers[0].User.DataGame.KingTower.Info.Hp,
 				Shield:      topPlayers[0].User.DataGame.KingTower.Info.Shield,
@@ -1479,8 +1489,9 @@ func NewGameState(match *session.MatchRoom) *GameState {
 
 		x, y := MirrorPosition(14, 6, len(mapData), len(mapData[0]))
 		bottomLeftGuardTower = Allies{
-			ID:   uuid.New().String(),
-			Type: "guard_tower",
+			ID:    uuid.New().String(),
+			Type:  "guard_tower",
+			Alive: true,
 			Guard: Guard{
 				HP:          botPlayers[0].User.DataGame.GuardTower.Info.Hp,
 				Shield:      botPlayers[0].User.DataGame.GuardTower.Info.Shield,
@@ -1495,8 +1506,9 @@ func NewGameState(match *session.MatchRoom) *GameState {
 
 		x, y = MirrorPosition(3, 6, len(mapData), len(mapData[0]))
 		bottomRightGuardTower = Allies{
-			ID:   uuid.New().String(),
-			Type: "guard_tower",
+			ID:    uuid.New().String(),
+			Type:  "guard_tower",
+			Alive: true,
 			Guard: Guard{
 				HP:          botPlayers[0].User.DataGame.GuardTower.Info.Hp,
 				Shield:      botPlayers[0].User.DataGame.GuardTower.Info.Shield,
@@ -1511,8 +1523,9 @@ func NewGameState(match *session.MatchRoom) *GameState {
 
 		x, y = MirrorPosition(8, 2, len(mapData), len(mapData[0]))
 		bottomKingTower = Allies{
-			ID:   uuid.New().String(),
-			Type: "king_tower",
+			ID:    uuid.New().String(),
+			Type:  "king_tower",
+			Alive: true,
 			King: King{
 				HP:          botPlayers[0].User.DataGame.KingTower.Info.Hp,
 				Shield:      botPlayers[0].User.DataGame.KingTower.Info.Shield,
@@ -1610,7 +1623,7 @@ func getUserDeck(db *mongo.Database, user *session.User) error {
 	}
 
 	// Gán vào DataGame.KingTower
-	user.DataGame.KingTower = session.KingTower{
+	dataGame.KingTower = session.KingTower{
 		Level: kingTowerLevel,
 		Name:  deck.KingTower.Name,
 		Info:  kingTowerData,
@@ -1733,6 +1746,7 @@ func getTowerLevelInfoKing(db *mongo.Database, name string, level int) (session.
 	if err != nil {
 		return session.TowerLevelInfo{}, err
 	}
+
 	// Tìm thông tin level cụ thể
 	for _, lvl := range TowerData.Levels {
 		if lvl.Level == level {
