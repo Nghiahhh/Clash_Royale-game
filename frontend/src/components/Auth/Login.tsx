@@ -13,6 +13,14 @@ import { authAPI } from '../../services/api'
 import { setCredentials } from '../../store/authSlice'
 import { wsService } from '../../services/websocket'
 
+// Define the response structure
+interface WebSocketLoginResponse {
+  data: {
+    token: string;
+    username: string;
+  };
+}
+
 const Login: React.FC = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -25,14 +33,21 @@ const Login: React.FC = () => {
     setError('')
 
     try {
-      const response = await authAPI.login({ gmail: email, password })
+      // Connect to WebSocket if not already connected
+      wsService.connect()
+      
+      // Use our WebSocket-based API
+      const response = await authAPI.login({ gmail: email, password }) as WebSocketLoginResponse
+      
+      // The response data structure matches what's coming from the WebSocket
       const { token, username } = response.data
       
+      // Save credentials to Redux store and localStorage
       dispatch(setCredentials({ token, username }))
-      wsService.connect(token)
       navigate('/game')
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed')
+      setError(err?.message || 'Login failed')
+      console.error('Login error:', err)
     }
   }
 

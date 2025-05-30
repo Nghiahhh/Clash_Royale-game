@@ -24,14 +24,15 @@ const Profile: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [selectedCard, setSelectedCard] = useState<string | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null)
-
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         const [cardsResponse, deckResponse] = await Promise.all([
           gameAPI.getUserCards(),
           gameAPI.getUserDeck(),
-        ])
+        ]) as [any, any]  // Type as any to handle WebSocket responses
+        
+        // The WebSocket API returns data in the format { data: { cards: [] } }
         dispatch(setUserCards(cardsResponse.data.cards))
         dispatch(setUserDeck(deckResponse.data))
       } catch (err) {
@@ -47,14 +48,14 @@ const Profile: React.FC = () => {
 
   const handleCardSelect = (cardName: string) => {
     setSelectedCard(cardName)
-  }
-
-  const handleSlotSelect = async (index: number) => {
+  }  const handleSlotSelect = async (index: number) => {
     if (!selectedCard) return
 
     try {
+      // Use our WebSocket-based API to swap cards
       await gameAPI.swapCard(selectedCard, index)
-      const deckResponse = await gameAPI.getUserDeck()
+      // Fetch the updated deck
+      const deckResponse = await gameAPI.getUserDeck() as any
       dispatch(setUserDeck(deckResponse.data))
       setSelectedCard(null)
       setSelectedSlot(null)

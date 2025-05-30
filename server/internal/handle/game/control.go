@@ -704,7 +704,7 @@ func CreateUpdateEvent(gs *GameState, side int) map[string]interface{} {
 
 	player := gs.Players[side][0]
 	return map[string]interface{}{
-		// "map":      displayMap,
+		"map":      displayMap,
 		"allies":   displayAllies,
 		"elixir":   player.Elixir,
 		"hand":     player.Hand,
