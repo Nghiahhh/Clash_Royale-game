@@ -6,13 +6,6 @@ import (
 	"sync"
 )
 
-type RoomType string
-
-const (
-	RoomType1v1 RoomType = "1v1"
-	RoomType2v2 RoomType = "2v2"
-)
-
 type Slot struct {
 	ID     int
 	Client *types.Client
@@ -21,7 +14,7 @@ type Slot struct {
 type LobbyRoom struct {
 	ID         string
 	MaxSize    int
-	Type       RoomType
+	Type       string
 	Slots      []*Slot
 	Match      bool
 	CancelFunc context.CancelFunc
@@ -30,7 +23,7 @@ type LobbyRoom struct {
 type MatchRoom struct {
 	ID      string
 	MaxSize int
-	Type    RoomType
+	Type    string
 	User    []*User
 }
 

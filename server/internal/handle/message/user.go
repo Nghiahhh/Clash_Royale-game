@@ -80,8 +80,8 @@ type UserDeck struct {
 
 // Dữ liệu đầu vào chung cho lobby
 type LobbyRequest struct {
-	RoomType session.RoomType `json:"room_type"`
-	LobbyID  string           `json:"lobby_id,omitempty"` // Chỉ dùng khi join
+	RoomType string `json:"room_type"`
+	LobbyID  string `json:"lobby_id,omitempty"` // Chỉ dùng khi join
 }
 
 func HandleLogin(c *types.Client, incoming utils.IncomingMessage) {

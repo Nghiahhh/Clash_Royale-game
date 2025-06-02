@@ -7,12 +7,12 @@ import (
 	"server/internal/types"
 )
 
-func CreateLobbyRoom(id string, roomType session.RoomType, match bool) *session.LobbyRoom {
+func CreateLobbyRoom(id string, roomType string, match bool) *session.LobbyRoom {
 	var maxSize int
 	switch roomType {
-	case session.RoomType1v1:
+	case "1v1":
 		maxSize = 2
-	case session.RoomType2v2:
+	case "2v2":
 		maxSize = 4
 	default:
 		maxSize = 2
@@ -105,12 +105,12 @@ func RemoveLobbyRoom(id string) {
 	delete(session.Lobbies, id)
 }
 
-func FindAvailableLobby(roomType session.RoomType) *session.LobbyRoom {
+func FindAvailableLobby(roomType string) *session.LobbyRoom {
 	session.LobbyMu.Lock()
 	defer session.LobbyMu.Unlock()
 
 	for _, room := range session.Lobbies {
-		if room.Type == roomType && !room.Match && !IsLobbyFull(room.ID) {
+		if room.Type == roomType && room.Match && !IsLobbyFull(room.ID) {
 			return room
 		}
 	}
@@ -118,8 +118,6 @@ func FindAvailableLobby(roomType session.RoomType) *session.LobbyRoom {
 }
 
 func IsLobbyFull(lobbyID string) bool {
-	session.LobbyMu.Lock()
-	defer session.LobbyMu.Unlock()
 
 	room, exists := session.Lobbies[lobbyID]
 	if !exists {

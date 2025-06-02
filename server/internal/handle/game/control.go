@@ -27,7 +27,7 @@ type outgoingMessage struct {
 
 // ControlLobby manages a single lobby room, checking every second if conditions are met
 func ControlLobby(ctx context.Context, room *session.LobbyRoom) {
-	log.Printf("Lobby control started for room %s", room.ID)
+	// log.Printf("Lobby control started for room %s", room.ID)
 
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
@@ -41,24 +41,24 @@ func ControlLobby(ctx context.Context, room *session.LobbyRoom) {
 			clientCount := ActiveClientsCount(room)
 
 			if clientCount == room.MaxSize {
-				log.Printf("Lobby %s is full. Moving to match.", room.ID)
+				// log.Printf("Lobby %s is full. Moving to match.", room.ID)
 				if PromoteLobbyToMatch(room) {
 					return
 				}
 			} else if clientCount > room.MaxSize {
-				log.Printf("Lobby %s has more clients than allowed. Closing.", room.ID)
+				// log.Printf("Lobby %s has more clients than allowed. Closing.", room.ID)
 				removeLobbyRoom(room.ID, "room_closed", "Lobby has too many clients")
 				return
 			}
 
 			if time.Since(startTime) > timeout {
-				log.Printf("Lobby %s timeout reached. Closing.", room.ID)
+				// log.Printf("Lobby %s timeout reached. Closing.", room.ID)
 				removeLobbyRoom(room.ID, "timeout", "Lobby timeout reached")
 				return
 			}
 
 		case <-ctx.Done():
-			log.Printf("Lobby %s canceled via context. Stopping control.", room.ID)
+			// log.Printf("Lobby %s canceled via context. Stopping control.", room.ID)
 			removeLobbyRoom(room.ID, "canceled", "Lobby was canceled")
 			return
 		}
@@ -106,11 +106,18 @@ func removeLobbyRoom(id string, errorType string, errorMsg string) {
 
 // sendJSON marshals data to JSON and sends to the send channel
 func sendJSON(send chan<- []byte, data interface{}) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered from panic when sending to channel: %v", r)
+		}
+	}()
+
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		log.Printf("Error marshaling JSON: %v", err)
 		return
 	}
+
 	// Safe send to avoid panic if channel closed
 	select {
 	case send <- jsonData:
@@ -220,7 +227,7 @@ func gameStart(match *session.MatchRoom) {
 		}
 	}
 
-	log.Printf("Lobby %s promoted to MatchRoom.", match.ID)
+	// log.Printf("Lobby %s promoted to MatchRoom.", match.ID)
 
 	for _, user := range match.User {
 		if user.Client != nil && user.Client.Send != nil {
@@ -233,6 +240,7 @@ func gameStart(match *session.MatchRoom) {
 	}
 
 	matchRoom := make(chan []byte, 40)
+	StopRoom := make(chan []byte, 2)
 	for _, client := range match.User {
 		client.Client.User.MatchRoom = matchRoom
 	}
@@ -249,10 +257,14 @@ func gameStart(match *session.MatchRoom) {
 
 	for {
 		select {
+		case <-StopRoom:
+			return
+
 		case <-ticker.C:
-			go updateGameState(gameState)
+			go updateGameState(gameState, StopRoom)
 
 		case data := <-matchRoom:
+			// log.Println("Received action from client:", string(data))
 			var action map[string]interface{}
 			if err := json.Unmarshal(data, &action); err != nil {
 				log.Printf("Error unmarshaling action: %v", err)
@@ -267,6 +279,15 @@ func gameStart(match *session.MatchRoom) {
 
 			switch actionType {
 			case "release":
+				type ReleaseActionData struct {
+					CardID int    `json:"cardID"`
+					X      int    `json:"x"`
+					Y      int    `json:"y"`
+					UserID int    `json:"user_id"`
+					MsgID  string `json:"msg_id"`
+				}
+
+				// Bắt đầu xử lý action "release"
 				dataMap, ok := action["data"].(map[string]interface{})
 				if !ok {
 					log.Printf("Invalid data format for release action: %v", action["data"])
@@ -290,6 +311,7 @@ func gameStart(match *session.MatchRoom) {
 				var playerSubIndex int
 				top := false
 				found := false
+
 				for i, group := range gameState.Players {
 					for j, p := range group {
 						if p.User.ID == releaseData.UserID {
@@ -313,16 +335,18 @@ func gameStart(match *session.MatchRoom) {
 					continue
 				}
 
+				cardFound := false
 				// Kiểm tra bài trong tay
 				for _, id := range player.Hand {
 					if id == releaseData.CardID {
+						cardFound = true
 						released := false
 
 						// Troops
 						for _, card := range player.User.DataGame.Troops {
 							if card.Index == releaseData.CardID {
-								if releaseData.Y < 0 || releaseData.Y >= len(gameState.Map) ||
-									releaseData.X < 0 || releaseData.X >= len(gameState.Map[0])/2 {
+								if releaseData.Y < 0 || releaseData.Y >= len(gameState.Map)/2 ||
+									releaseData.X < 0 || releaseData.X >= len(gameState.Map[0]) {
 									sendError(player.User.Client.Send, releaseData.MsgID, "invalid_position", "Out of map bounds")
 									break
 								}
@@ -343,7 +367,7 @@ func gameStart(match *session.MatchRoom) {
 
 								x, y := releaseData.X, releaseData.Y
 								if !top {
-									x, y = MirrorPosition(x, y, len(gameState.Map), len(gameState.Map[0]))
+									x, y = MirrorPosition(x, y, len(gameState.Map[0]), len(gameState.Map))
 								}
 
 								troop := Troop{
@@ -372,7 +396,6 @@ func gameStart(match *session.MatchRoom) {
 								break
 							}
 						}
-
 						// Spells
 						if !released {
 							for _, card := range player.User.DataGame.Spells {
@@ -399,7 +422,7 @@ func gameStart(match *session.MatchRoom) {
 
 									x, y := releaseData.X, releaseData.Y
 									if !top {
-										x, y = MirrorPosition(x, y, len(gameState.Map), len(gameState.Map[0]))
+										x, y = MirrorPosition(x, y, len(gameState.Map[0]), len(gameState.Map))
 									}
 
 									troop := Troop{
@@ -434,13 +457,15 @@ func gameStart(match *session.MatchRoom) {
 						break
 					}
 				}
-
+				if !cardFound {
+					sendError(player.User.Client.Send, releaseData.MsgID, "card_not_found", "Card not found in hand")
+				}
 			default:
-
+				sendError(matchRoom, "", "invalid_action", "Unknown action type: "+actionType)
 			}
 
 		case <-gameTimer.C:
-			log.Printf("Match %s timed out. Evaluating final result.", match.ID)
+			// log.Printf("Match %s timed out. Evaluating final result.", match.ID)
 
 			// Đã check king chết trong checkGameEnd(), giờ gọi resolveDrawOutcome
 			winner := resolveDrawOutcome(gameState)
@@ -459,8 +484,7 @@ func gameStart(match *session.MatchRoom) {
 					})
 				}
 			}
-			return
-
+			StopRoom <- []byte("s")
 		}
 	}
 }
@@ -506,7 +530,7 @@ func resolveDrawOutcome(gs *GameState) int {
 	return -1 // hoà
 }
 
-func updateGameState(gs *GameState) {
+func updateGameState(gs *GameState, stop chan []byte) {
 	// 1. Cập nhật tài nguyên Elixir cho mỗi người chơi
 	updateElixir(gs)
 
@@ -536,6 +560,7 @@ func updateGameState(gs *GameState) {
 				sendMessage(player.User.Client.Send, "end_game", "game_end", map[string]interface{}{
 					"result": result,
 				})
+				stop <- []byte("s")
 			}
 		}
 		return
@@ -627,14 +652,14 @@ func UpdateAliveStatus(gs *GameState) {
 			}
 
 			// Guard
-			if unit.Type == "guard" {
+			if unit.Type == "guard_tower" {
 				if unit.Guard.HP <= 0 {
 					unit.Alive = false
 				}
 			}
 
 			// King
-			if unit.Type == "king" {
+			if unit.Type == "king_tower" {
 				if unit.King.HP <= 0 {
 					unit.Alive = false
 				}
@@ -643,16 +668,28 @@ func UpdateAliveStatus(gs *GameState) {
 	}
 }
 
-// Kiểm tra King Tower của mỗi bên, nếu bị phá thì trả về side thắng, chưa kết thúc trả về -1
 func checkGameEnd(gs *GameState) int {
+	found := [2]bool{false, false}
+
 	for side := 0; side < 2; side++ {
 		for _, ally := range gs.Allies[side] {
-			if ally.Type == "king_tower" && ally.King.HP <= 0 {
-				return 1 - side // Đối phương thắng
+			if ally.Type == "king_tower" {
+				found[side] = true
+				break
 			}
 		}
 	}
-	return -1
+
+	if !found[0] && !found[1] {
+		return 2 // hòa
+	}
+	if !found[0] {
+		return 1 // team 1 thắng
+	}
+	if !found[1] {
+		return 0 // team 0 thắng
+	}
+	return -1 // chưa kết thúc
 }
 
 func CreateUpdateEvent(gs *GameState, side int) map[string]interface{} {
@@ -686,16 +723,20 @@ func CreateUpdateEvent(gs *GameState, side int) map[string]interface{} {
 				switch ally.Type {
 				case "troop":
 					clone.Troops.Location.X, clone.Troops.Location.Y =
-						MirrorPosition(ally.Troops.Location.X, ally.Troops.Location.Y, len(gs.Map), len(gs.Map[0]))
+						MirrorPosition(ally.Troops.Location.X, ally.Troops.Location.Y, len(gs.Map[0]), len(gs.Map))
 				case "spell":
 					clone.Spells.Location.X, clone.Spells.Location.Y =
-						MirrorPosition(ally.Spells.Location.X, ally.Spells.Location.Y, len(gs.Map), len(gs.Map[0]))
+						MirrorPosition(ally.Spells.Location.X, ally.Spells.Location.Y, len(gs.Map[0]), len(gs.Map))
 				case "guard_tower":
 					clone.Guard.Location.X, clone.Guard.Location.Y =
-						MirrorPosition(ally.Guard.Location.X, ally.Guard.Location.Y, len(gs.Map), len(gs.Map[0]))
+						MirrorPosition(ally.Guard.Location.X, ally.Guard.Location.Y, len(gs.Map[0]), len(gs.Map))
+					clone.Guard.Location.X -= clone.Guard.Location.wide
+					clone.Guard.Location.Y -= clone.Guard.Location.long
 				case "king_tower":
 					clone.King.Location.X, clone.King.Location.Y =
-						MirrorPosition(ally.King.Location.X, ally.King.Location.Y, len(gs.Map), len(gs.Map[0]))
+						MirrorPosition(ally.King.Location.X, ally.King.Location.Y, len(gs.Map[0]), len(gs.Map))
+					clone.King.Location.X -= clone.King.Location.wide
+					clone.King.Location.Y -= clone.King.Location.long
 				}
 			}
 			displayAllies[i] = append(displayAllies[i], clone)
@@ -779,19 +820,15 @@ type Node struct {
 
 // Tọa độ trên bản đồ
 // Hàm tìm đường từ start đến goal (dùng Position thay cho Coord)
-func bfsPath(gs *GameState, start, goal Position) []Position {
+func bfsPathToArea(gs *GameState, start Position, target Position) []Position {
 	h, w := len(gs.Map), len(gs.Map[0])
 	visited := make([][]bool, h)
 	for i := range visited {
 		visited[i] = make([]bool, w)
 	}
 
-	// 4 hướng: lên, xuống, trái, phải
 	dirs := []struct{ X, Y int }{
-		{X: -1, Y: 0},
-		{X: 1, Y: 0},
-		{X: 0, Y: -1},
-		{X: 0, Y: 1},
+		{X: -1, Y: 0}, {X: 1, Y: 0}, {X: 0, Y: -1}, {X: 0, Y: 1},
 	}
 
 	type Node struct {
@@ -799,26 +836,39 @@ func bfsPath(gs *GameState, start, goal Position) []Position {
 		Prev *Node
 	}
 
+	isInTarget := func(x, y int) bool {
+		return x >= target.X && x < target.X+target.wide &&
+			y >= target.Y && y < target.Y+target.long
+	}
+
 	queue := []Node{{Pos: start}}
-	visited[start.X][start.Y] = true
+	visited[start.Y][start.X] = true
 	var endNode *Node
 
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
 
-		if current.Pos.X == goal.X && current.Pos.Y == goal.Y {
-			nodeCopy := current
-			endNode = &nodeCopy
+		// Nếu kề cạnh vùng target (1 ô bên ngoài vùng target)
+		for _, d := range dirs {
+			nx := current.Pos.X + d.X
+			ny := current.Pos.Y + d.Y
+			if isInTarget(nx, ny) {
+				nodeCopy := current
+				endNode = &nodeCopy
+				break
+			}
+		}
+		if endNode != nil {
 			break
 		}
 
 		for _, d := range dirs {
 			nx := current.Pos.X + d.X
 			ny := current.Pos.Y + d.Y
-			if nx >= 0 && nx < h && ny >= 0 && ny < w &&
-				!visited[nx][ny] && gs.Map[nx][ny] == 1 {
-				visited[nx][ny] = true
+			if nx >= 0 && nx < w && ny >= 0 && ny < h &&
+				!visited[ny][nx] && gs.Map[ny][nx] == 1 {
+				visited[ny][nx] = true
 				next := Node{Pos: Position{X: nx, Y: ny}, Prev: &current}
 				queue = append(queue, next)
 			}
@@ -826,15 +876,14 @@ func bfsPath(gs *GameState, start, goal Position) []Position {
 	}
 
 	if endNode == nil {
-		return nil // không tìm được đường
+		return nil
 	}
 
-	// Truy vết đường đi từ goal về start
+	// Truy vết lại path
 	var path []Position
 	for node := endNode; node != nil; node = node.Prev {
 		path = append([]Position{node.Pos}, path...)
 	}
-
 	return path
 }
 
@@ -850,29 +899,16 @@ func moveTowards(gs *GameState, attacker *Allies, targetID string) {
 	from := attacker.GetLocation()
 	to := target.GetLocation()
 
-	log.Printf("Moving %s from %v to %v", attacker.Type, from, to)
-	path := bfsPath(gs, from, to)
-	log.Printf("Path found: %v", path)
+	path := bfsPathToArea(gs, from, to)
+	// log.Printf("Path found from %v to area around %v: %v", from, to, path)
 	if len(path) >= 2 {
-		// path[0] là vị trí hiện tại, path[1] là bước kế tiếp
 		nextStep := Position{
 			X:    path[1].X,
 			Y:    path[1].Y,
-			long: attacker.GetLocation().long,
-			wide: attacker.GetLocation().wide,
+			long: from.long,
+			wide: from.wide,
 		}
-		attacker.SetLocation(nextStep)
-	}
-}
-
-func (a *Allies) SetLocation(pos Position) {
-	switch a.Type {
-	case "troop":
-		a.Troops.Location = pos
-	case "guard_tower":
-		a.Guard.Location = pos
-	case "king_tower":
-		a.King.Location = pos
+		attacker.Troops.Location = nextStep
 	}
 }
 
@@ -897,7 +933,7 @@ func handleTroopCombat(gs *GameState, troop *Allies, enemySide int) {
 			if target != nil && target.Alive {
 				damage := calculateDamage(troop, target)
 				target.ReduceHP(damage)
-				log.Println("Attacking target:", target.ID, "with damage:", damage)
+				// log.Println("troop "+troop.Troops.CardInfo.Name+" Attacking target:", target.Type, "with damage:", damage)
 				t.Time_attack -= float32(1.0 / t.CardInfo.Info.AttackSpeed)
 
 				if t.Skill_info.Name != "" && !t.Skill_using {
@@ -926,7 +962,7 @@ func handleGuardCombat(gs *GameState, guard *Allies, enemySide int) {
 			target := getAllyByID(gs, g.TargetID)
 			if target != nil && target.IsAlive() {
 				damage := calculateDamage(guard, target)
-				log.Println("Attacking target:", target.ID, "with damage:", damage)
+				// log.Println("guard "+guard.Guard.GuardInfo.Name+" Attacking target:", target.Type, "with damage:", damage)
 				target.ReduceHP(damage)
 				g.Time_attack -= float32(1.0 / g.GuardInfo.Info.AttackSpeed)
 			}
@@ -950,7 +986,7 @@ func handleKingCombat(gs *GameState, king *Allies, enemySide int) {
 			target := getAllyByID(gs, k.TargetID)
 			if target != nil && target.IsAlive() {
 				damage := calculateDamage(king, target)
-				log.Println("Attacking target:", target.ID, "with damage:", damage)
+				// log.Println("king "+king.King.KingInfo.Name+" Attacking target:", target.Type, "with damage:", damage)
 				target.ReduceHP(damage)
 				k.Time_attack -= float32(1.0 / k.KingInfo.Info.AttackSpeed)
 			}
@@ -963,7 +999,7 @@ func handleSpellEffect(gs *GameState, spell *Allies) {
 	s.Time_effect += 0.5
 	if s.Time_effect >= 1.0/float32(s.Skill_info.Effect_speed) {
 		if s.Time < s.Skill_info.Time {
-			log.Println("Applying spell effect at location:", s.Location, "with skill:", s.Skill_info.Name)
+			// log.Println("Applying spell effect at location:", s.Location, "with skill:", s.Skill_info.Name)
 			ApplySkillArea(gs, s.Location, &s.Skill_info)
 			s.Time_effect -= 1.0 / float32(s.Skill_info.Effect_speed)
 			s.Time += 1
@@ -972,10 +1008,34 @@ func handleSpellEffect(gs *GameState, spell *Allies) {
 	}
 }
 
-func isInRange(from Position, to Position, rangeVal float64) bool {
-	dx := float64(from.X - to.X)
-	dy := float64(from.Y - to.Y)
-	return math.Sqrt(dx*dx+dy*dy) <= rangeVal
+func isInRange(from, to Position, rangeVal float64) bool {
+	// Lấy rìa ngoài vùng to
+	left := to.X
+	right := to.X + to.wide - 1
+	top := to.Y
+	bottom := to.Y + to.long - 1
+
+	// Tính khoảng cách Manhattan ngắn nhất từ `from` đến vùng
+	var dx, dy int
+
+	if from.X < left {
+		dx = left - from.X
+	} else if from.X > right {
+		dx = from.X - right
+	} else {
+		dx = 0
+	}
+
+	if from.Y < top {
+		dy = top - from.Y
+	} else if from.Y > bottom {
+		dy = from.Y - bottom
+	} else {
+		dy = 0
+	}
+
+	distance := dx + dy
+	return float64(distance) <= rangeVal
 }
 
 func getLocationByID(gs *GameState, id string) Position {
@@ -997,7 +1057,7 @@ func findNearestTargetID(gs *GameState, from Position, enemySide int, rangeVal f
 		if !target.Alive || target.Type == "spell" {
 			continue
 		}
-		dist := GetMinDistanceBetweenAreas(from, target.GetLocation(), enemySide)
+		dist := GetMinDistanceBetweenAreas(from, target.GetLocation())
 		if dist < minDist {
 			minDist = dist
 			nearestID = target.ID
@@ -1006,30 +1066,18 @@ func findNearestTargetID(gs *GameState, from Position, enemySide int, rangeVal f
 	return nearestID
 }
 
-func GetMinDistanceBetweenAreas(from, to Position, enemySide int) float64 {
+func GetMinDistanceBetweenAreas(from, to Position) float64 {
 	minDist := math.MaxFloat64
 
-	for dy1 := 0; dy1 < from.wide; dy1++ {
-		for dx1 := 0; dx1 < from.long; dx1++ {
-			var x1, y1 int
-			if enemySide == 0 {
-				x1 = from.X + dx1
-				y1 = from.Y + dy1
-			} else {
-				x1 = from.X - dx1
-				y1 = from.Y - dy1
-			}
+	for yOffset1 := 0; yOffset1 < from.long; yOffset1++ {
+		for xOffset1 := 0; xOffset1 < from.wide; xOffset1++ {
+			x1 := from.X + xOffset1
+			y1 := from.Y + yOffset1
 
-			for dy2 := 0; dy2 < to.wide; dy2++ {
-				for dx2 := 0; dx2 < to.long; dx2++ {
-					var x2, y2 int
-					if enemySide == 0 {
-						x2 = to.X + dx2
-						y2 = to.Y + dy2
-					} else {
-						x2 = to.X - dx2
-						y2 = to.Y - dy2
-					}
+			for yOffset2 := 0; yOffset2 < to.long; yOffset2++ {
+				for xOffset2 := 0; xOffset2 < to.wide; xOffset2++ {
+					x2 := to.X + xOffset2
+					y2 := to.Y + yOffset2
 
 					dist := GetDistance(
 						Position{X: x1, Y: y1},
@@ -1048,8 +1096,15 @@ func GetMinDistanceBetweenAreas(from, to Position, enemySide int) float64 {
 }
 
 func GetDistance(from, to Position) float64 {
-	dx := float64(from.X - to.X)
-	dy := float64(from.Y - to.Y)
+	cx1 := float64(from.X) + float64(from.wide)/2
+	cy1 := float64(from.Y) + float64(from.long)/2
+
+	cx2 := float64(to.X) + float64(to.wide)/2
+	cy2 := float64(to.Y) + float64(to.long)/2
+
+	dx := cx1 - cx2
+	dy := cy1 - cy2
+
 	return math.Sqrt(dx*dx + dy*dy)
 }
 
@@ -1277,27 +1332,32 @@ func CleanupAllies(gs *GameState) {
 					wide := loc.wide
 					startX, startY := loc.X, loc.Y
 
-					if side == 0 {
-						// Phe trên: duyệt từ trái trên sang phải dưới
-						for y := startY; y < startY+wide; y++ {
-							for x := startX; x < startX+long; x++ {
-								if y >= 0 && y < len(gs.Map) && x >= 0 && x < len(gs.Map[0]) {
-									gs.Map[y][x] = 1
-								}
-							}
-						}
-					} else {
-						// Phe dưới: duyệt từ phải dưới sang trái trên
-						startX = loc.X - long + 1
-						startY = loc.Y - wide + 1
-						for y := startY + wide - 1; y >= startY; y-- {
-							for x := startX + long - 1; x >= startX; x-- {
-								if y >= 0 && y < len(gs.Map) && x >= 0 && x < len(gs.Map[0]) {
-									gs.Map[y][x] = 1
-								}
+					// Phe trên: duyệt từ trái trên sang phải dưới
+					for y := startY; y < startY+wide; y++ {
+						for x := startX; x < startX+long; x++ {
+							if y >= 0 && y < len(gs.Map) && x >= 0 && x < len(gs.Map[0]) {
+								gs.Map[y][x] = 1
 							}
 						}
 					}
+
+				}
+
+				if ally.Type == "king_tower" {
+					loc := ally.King.Location
+					long := loc.long
+					wide := loc.wide
+					startX, startY := loc.X, loc.Y
+
+					// Phe trên: duyệt từ trái trên sang phải dưới
+					for y := startY; y < startY+wide; y++ {
+						for x := startX; x < startX+long; x++ {
+							if y >= 0 && y < len(gs.Map) && x >= 0 && x < len(gs.Map[0]) {
+								gs.Map[y][x] = 1
+							}
+						}
+					}
+
 				}
 				continue
 			}
@@ -1307,9 +1367,9 @@ func CleanupAllies(gs *GameState) {
 	}
 }
 
-func MirrorPosition(x, y, rows, cols int) (int, int) {
-	mirroredX := rows - 1 - x
-	mirroredY := cols - 1 - y
+func MirrorPosition(x, y, cols, rows int) (int, int) {
+	mirroredX := cols - 1 - x
+	mirroredY := rows - 1 - y
 	return mirroredX, mirroredY
 }
 
@@ -1394,7 +1454,7 @@ type Position struct {
 }
 
 func NewGameState(match *session.MatchRoom) *GameState {
-	mapData := loadMapFromMongoDB("Basic Map 20x35")
+	mapData := loadMapFromMongoDB("Basic Map 20x33")
 
 	var topPlayers []*PlayerState
 	var botPlayers []*PlayerState
@@ -1487,7 +1547,9 @@ func NewGameState(match *session.MatchRoom) *GameState {
 			},
 		}
 
-		x, y := MirrorPosition(14, 6, len(mapData), len(mapData[0]))
+		x, y := MirrorPosition(14, 6, len(mapData[0]), len(mapData))
+		x -= 3
+		y -= 3
 		bottomLeftGuardTower = Allies{
 			ID:    uuid.New().String(),
 			Type:  "guard_tower",
@@ -1504,7 +1566,9 @@ func NewGameState(match *session.MatchRoom) *GameState {
 			},
 		}
 
-		x, y = MirrorPosition(3, 6, len(mapData), len(mapData[0]))
+		x, y = MirrorPosition(3, 6, len(mapData[0]), len(mapData))
+		x -= 3
+		y -= 3
 		bottomRightGuardTower = Allies{
 			ID:    uuid.New().String(),
 			Type:  "guard_tower",
@@ -1521,7 +1585,9 @@ func NewGameState(match *session.MatchRoom) *GameState {
 			},
 		}
 
-		x, y = MirrorPosition(8, 2, len(mapData), len(mapData[0]))
+		x, y = MirrorPosition(8, 2, len(mapData[0]), len(mapData))
+		x -= 4
+		y -= 4
 		bottomKingTower = Allies{
 			ID:    uuid.New().String(),
 			Type:  "king_tower",
@@ -1539,6 +1605,126 @@ func NewGameState(match *session.MatchRoom) *GameState {
 			},
 		}
 
+	}
+
+	if len(topPlayers) == 2 && len(botPlayers) == 2 {
+		// ==== Guard Towers (Top) ====
+		topLeftGuardTower = Allies{
+			ID:    uuid.New().String(),
+			Type:  "guard_tower",
+			Alive: true,
+			Guard: Guard{
+				HP:          topPlayers[0].User.DataGame.GuardTower.Info.Hp,
+				Shield:      topPlayers[0].User.DataGame.GuardTower.Info.Shield,
+				Time_attack: 0,
+				Location:    Position{X: 3, Y: 6, long: 3, wide: 3},
+				Skill_using: false,
+				GuardInfo:   topPlayers[0].User.DataGame.GuardTower,
+				Skill_info:  topPlayers[0].User.DataGame.GuardTower.Info.Skill,
+				TargetID:    "",
+			},
+		}
+		topRightGuardTower = Allies{
+			ID:    uuid.New().String(),
+			Type:  "guard_tower",
+			Alive: true,
+			Guard: Guard{
+				HP:          topPlayers[1].User.DataGame.GuardTower.Info.Hp,
+				Shield:      topPlayers[1].User.DataGame.GuardTower.Info.Shield,
+				Time_attack: 0,
+				Location:    Position{X: 14, Y: 6, long: 3, wide: 3},
+				Skill_using: false,
+				GuardInfo:   topPlayers[1].User.DataGame.GuardTower,
+				Skill_info:  topPlayers[1].User.DataGame.GuardTower.Info.Skill,
+				TargetID:    "",
+			},
+		}
+
+		// ==== King Tower (Top): chọn player có level cao hơn ====
+		topKingPlayer := topPlayers[0]
+		if topPlayers[1].User.DataGame.KingTower.Level > topPlayers[0].User.DataGame.KingTower.Level {
+			topKingPlayer = topPlayers[1]
+		}
+		topKingTower = Allies{
+			ID:    uuid.New().String(),
+			Type:  "king_tower",
+			Alive: true,
+			King: King{
+				HP:          topKingPlayer.User.DataGame.KingTower.Info.Hp,
+				Shield:      topKingPlayer.User.DataGame.KingTower.Info.Shield,
+				Time_attack: 0,
+				Location:    Position{X: 8, Y: 2, long: 4, wide: 4},
+				Skill_using: false,
+				KingInfo:    topKingPlayer.User.DataGame.KingTower,
+				Skill_info:  topKingPlayer.User.DataGame.KingTower.Info.Skill,
+				TargetID:    "",
+				Active:      false,
+			},
+		}
+
+		// ==== Guard Towers (Bottom) ====
+		x, y := MirrorPosition(14, 6, len(mapData[0]), len(mapData))
+		x -= 3
+		y -= 3
+		bottomLeftGuardTower = Allies{
+			ID:    uuid.New().String(),
+			Type:  "guard_tower",
+			Alive: true,
+			Guard: Guard{
+				HP:          botPlayers[0].User.DataGame.GuardTower.Info.Hp,
+				Shield:      botPlayers[0].User.DataGame.GuardTower.Info.Shield,
+				Time_attack: 0,
+				Location:    Position{X: x, Y: y, long: 3, wide: 3},
+				Skill_using: false,
+				GuardInfo:   botPlayers[0].User.DataGame.GuardTower,
+				Skill_info:  botPlayers[0].User.DataGame.GuardTower.Info.Skill,
+				TargetID:    "",
+			},
+		}
+
+		x, y = MirrorPosition(3, 6, len(mapData[0]), len(mapData))
+		x -= 3
+		y -= 3
+		bottomRightGuardTower = Allies{
+			ID:    uuid.New().String(),
+			Type:  "guard_tower",
+			Alive: true,
+			Guard: Guard{
+				HP:          botPlayers[1].User.DataGame.GuardTower.Info.Hp,
+				Shield:      botPlayers[1].User.DataGame.GuardTower.Info.Shield,
+				Time_attack: 0,
+				Location:    Position{X: x, Y: y, long: 3, wide: 3},
+				Skill_using: false,
+				GuardInfo:   botPlayers[1].User.DataGame.GuardTower,
+				Skill_info:  botPlayers[1].User.DataGame.GuardTower.Info.Skill,
+				TargetID:    "",
+			},
+		}
+
+		// ==== King Tower (Bottom): chọn player có level cao hơn ====
+		botKingPlayer := botPlayers[0]
+		if botPlayers[1].User.DataGame.KingTower.Level > botPlayers[0].User.DataGame.KingTower.Level {
+			botKingPlayer = botPlayers[1]
+		}
+		x, y = MirrorPosition(8, 2, len(mapData[0]), len(mapData))
+		x -= 4
+		y -= 4
+		bottomKingTower = Allies{
+			ID:    uuid.New().String(),
+			Type:  "king_tower",
+			Alive: true,
+			King: King{
+				HP:          botKingPlayer.User.DataGame.KingTower.Info.Hp,
+				Shield:      botKingPlayer.User.DataGame.KingTower.Info.Shield,
+				Time_attack: 0,
+				Location:    Position{X: x, Y: y, long: 4, wide: 4},
+				Skill_using: false,
+				KingInfo:    botKingPlayer.User.DataGame.KingTower,
+				Skill_info:  botKingPlayer.User.DataGame.KingTower.Info.Skill,
+				TargetID:    "",
+				Active:      false,
+			},
+		}
 	}
 
 	return &GameState{

@@ -1,0 +1,331 @@
+[{
+  "_id": {
+    "$oid": "6838913bee8e09aacbba0971"
+  },
+  "user_id": 1,
+  "king_tower": {
+    "name": "King_Tower"
+  },
+  "guard_tower": {
+    "name": "Guard_Tower",
+    "level": 1,
+    "count": 0
+  },
+  "cards": [
+    {
+      "index": 1,
+      "name": "Pawn",
+      "level": 1
+    },
+    {
+      "index": 2,
+      "name": "Bishop",
+      "level": 1
+    },
+    {
+      "index": 3,
+      "name": "King",
+      "level": 1
+    },
+    {
+      "index": 4,
+      "name": "Knight",
+      "level": 1
+    },
+    {
+      "index": 5,
+      "name": "Prince",
+      "level": 1
+    },
+    {
+      "index": 6,
+      "name": "Queen",
+      "level": 1
+    },
+    {
+      "index": 7,
+      "name": "Fireball",
+      "level": 1
+    },
+    {
+      "index": 8,
+      "name": "Healing Light",
+      "level": 1
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "6838913eee8e09aacbba0974"
+  },
+  "user_id": 2,
+  "king_tower": {
+    "name": "King_Tower"
+  },
+  "guard_tower": {
+    "name": "Guard_Tower",
+    "level": 1
+  },
+  "cards": [
+    {
+      "index": 1,
+      "name": "Pawn",
+      "level": 1
+    },
+    {
+      "index": 2,
+      "name": "Bishop",
+      "level": 1
+    },
+    {
+      "index": 3,
+      "name": "Rook",
+      "level": 1
+    },
+    {
+      "index": 4,
+      "name": "Knight",
+      "level": 1
+    },
+    {
+      "index": 5,
+      "name": "Prince",
+      "level": 1
+    },
+    {
+      "index": 6,
+      "name": "Queen",
+      "level": 1
+    },
+    {
+      "index": 7,
+      "name": "Fireball",
+      "level": 1
+    },
+    {
+      "index": 8,
+      "name": "Healing Light",
+      "level": 1
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "68390fc75982b49017c2e80b"
+  },
+  "user_id": 3,
+  "king_tower": {
+    "name": "King_Tower"
+  },
+  "guard_tower": {
+    "name": "Guard_Tower",
+    "level": 1
+  },
+  "cards": [
+    {
+      "index": 1,
+      "name": "Pawn",
+      "level": 1
+    },
+    {
+      "index": 2,
+      "name": "Bishop",
+      "level": 1
+    },
+    {
+      "index": 3,
+      "name": "Rook",
+      "level": 1
+    },
+    {
+      "index": 4,
+      "name": "Knight",
+      "level": 1
+    },
+    {
+      "index": 5,
+      "name": "Prince",
+      "level": 1
+    },
+    {
+      "index": 6,
+      "name": "Queen",
+      "level": 1
+    },
+    {
+      "name": "Fireball",
+      "level": 1,
+      "index": 7
+    },
+    {
+      "level": 1,
+      "index": 8,
+      "name": "Healing Light"
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "683da3695af7fb25155bcd7d"
+  },
+  "user_id": 4,
+  "king_tower": {
+    "name": "King_Tower"
+  },
+  "guard_tower": {
+    "name": "Guard_Tower",
+    "level": 1
+  },
+  "cards": [
+    {
+      "index": 1,
+      "name": "Pawn",
+      "level": 1
+    },
+    {
+      "index": 2,
+      "name": "Bishop",
+      "level": 1
+    },
+    {
+      "index": 3,
+      "name": "Rook",
+      "level": 1
+    },
+    {
+      "index": 4,
+      "name": "Knight",
+      "level": 1
+    },
+    {
+      "name": "Prince",
+      "level": 1,
+      "index": 5
+    },
+    {
+      "index": 6,
+      "name": "Queen",
+      "level": 1
+    },
+    {
+      "index": 7,
+      "name": "Fireball",
+      "level": 1
+    },
+    {
+      "index": 8,
+      "name": "Healing Light",
+      "level": 1
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "683da3745af7fb25155bcd80"
+  },
+  "user_id": 5,
+  "king_tower": {
+    "name": "King_Tower"
+  },
+  "guard_tower": {
+    "name": "Guard_Tower",
+    "level": 1
+  },
+  "cards": [
+    {
+      "level": 1,
+      "index": 1,
+      "name": "Pawn"
+    },
+    {
+      "index": 2,
+      "name": "Bishop",
+      "level": 1
+    },
+    {
+      "index": 3,
+      "name": "Rook",
+      "level": 1
+    },
+    {
+      "index": 4,
+      "name": "Knight",
+      "level": 1
+    },
+    {
+      "index": 5,
+      "name": "Prince",
+      "level": 1
+    },
+    {
+      "index": 6,
+      "name": "Queen",
+      "level": 1
+    },
+    {
+      "level": 1,
+      "index": 7,
+      "name": "Fireball"
+    },
+    {
+      "index": 8,
+      "name": "Healing Light",
+      "level": 1
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "683da719749e7ad7c4c34975"
+  },
+  "user_id": 6,
+  "king_tower": {
+    "name": "King_Tower"
+  },
+  "guard_tower": {
+    "name": "Guard_Tower",
+    "level": 1
+  },
+  "cards": [
+    {
+      "index": 1,
+      "name": "Pawn",
+      "level": 1
+    },
+    {
+      "index": 2,
+      "name": "Bishop",
+      "level": 1
+    },
+    {
+      "index": 3,
+      "name": "Rook",
+      "level": 1
+    },
+    {
+      "index": 4,
+      "name": "Knight",
+      "level": 1
+    },
+    {
+      "index": 5,
+      "name": "Prince",
+      "level": 1
+    },
+    {
+      "index": 6,
+      "name": "Queen",
+      "level": 1
+    },
+    {
+      "name": "Fireball",
+      "level": 1,
+      "index": 7
+    },
+    {
+      "index": 8,
+      "name": "Healing Light",
+      "level": 1
+    }
+  ]
+}]
