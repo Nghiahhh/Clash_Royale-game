@@ -1,26 +1,21 @@
-import 'package:clash_royale/Clash_Royale.dart';
-import 'package:flame/flame.dart';
-import 'package:flame/game.dart';
-import 'package:flutter/foundation.dart';
+// File: lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'services/auth_service.dart';
+import 'screens/login_page.dart';
+import 'screens/home_page.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  Flame.device.fullScreen();
-  Flame.device.setPortrait();
+  await dotenv.load(fileName: ".env");
 
-  Clash_Royale game = Clash_Royale();
+  final auth = AuthService();
+  final loggedIn = await auth.isLoggedIn();
 
-  // runApp(
-  //   MaterialApp(
-  //     debugShowCheckedModeBanner: false,
-  //     home: GameWidget(game: game),
-  //   ),
-  // );
   runApp(
     MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: GameWidget(game: kDebugMode ? Clash_Royale() : game),
+      home: loggedIn ? HomePage() : LoginPage(),
     ),
   );
 }

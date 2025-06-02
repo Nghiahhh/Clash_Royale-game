@@ -1,0 +1,145 @@
+[{
+  "_id": {
+    "$oid": "683c17a0b85f05e80a3ca654"
+  },
+  "name": "Guard_Tower",
+  "rarity": "common",
+  "skill": null,
+  "levels": [
+    {
+      "level": 1,
+      "hp": 100,
+      "atk": 8,
+      "def": 4,
+      "crit_rate": 0.05,
+      "attack_speed": 1.5,
+      "range": 7
+    },
+    {
+      "level": 2,
+      "hp": 110,
+      "atk": 10,
+      "def": 4,
+      "crit_rate": 0.05,
+      "attack_speed": 1.5,
+      "range": 7
+    },
+    {
+      "level": 3,
+      "hp": 120,
+      "atk": 10,
+      "def": 4,
+      "crit_rate": 0.05,
+      "attack_speed": 1.5,
+      "range": 7
+    },
+    {
+      "level": 4,
+      "hp": 120,
+      "atk": 12,
+      "def": 4,
+      "crit_rate": 0.05,
+      "attack_speed": 1.5,
+      "range": 7
+    },
+    {
+      "level": 5,
+      "hp": 140,
+      "atk": 12,
+      "def": 4,
+      "crit_rate": 0.05,
+      "attack_speed": 1.5,
+      "range": 7
+    },
+    {
+      "level": 6,
+      "hp": 120,
+      "atk": 12,
+      "def": 5,
+      "crit_rate": 0.05,
+      "attack_speed": 1.5,
+      "range": 7
+    },
+    {
+      "level": 7,
+      "hp": 120,
+      "atk": 13,
+      "def": 5,
+      "crit_rate": 0.05,
+      "attack_speed": 1.5,
+      "range": 7
+    },
+    {
+      "level": 8,
+      "hp": 120,
+      "atk": 14,
+      "def": 5,
+      "crit_rate": 0.05,
+      "attack_speed": 1.5,
+      "range": 7
+    },
+    {
+      "level": 9,
+      "hp": 130,
+      "atk": 14,
+      "def": 5,
+      "crit_rate": 0.05,
+      "attack_speed": 1.5,
+      "range": 7
+    },
+    {
+      "level": 10,
+      "hp": 130,
+      "atk": 14,
+      "def": 5,
+      "crit_rate": 0.06,
+      "attack_speed": 1.5,
+      "range": 7
+    },
+    {
+      "level": 11,
+      "hp": 1900,
+      "atk": 525,
+      "def": 178,
+      "crit_rate": 0.1,
+      "attack_speed": 1.5,
+      "range": 7
+    },
+    {
+      "level": 12,
+      "hp": 130,
+      "atk": 15,
+      "def": 5,
+      "crit_rate": 0.06,
+      "attack_speed": 1.5,
+      "range": 7
+    },
+    {
+      "level": 13,
+      "hp": 130,
+      "atk": 16,
+      "def": 5,
+      "crit_rate": 0.06,
+      "attack_speed": 1.5,
+      "range": 7
+    },
+    {
+      "level": 14,
+      "hp": 140,
+      "atk": 16,
+      "def": 5,
+      "crit_rate": 0.06,
+      "attack_speed": 1.5,
+      "range": 7
+    },
+    {
+      "level": 15,
+      "hp": 150,
+      "atk": 16,
+      "def": 5,
+      "crit_rate": 0.06,
+      "attack_speed": 1.5,
+      "range": 7
+    }
+  ]
+}]

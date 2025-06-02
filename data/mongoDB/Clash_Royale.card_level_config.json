@@ -1,0 +1,128 @@
+[{
+  "_id": {
+    "$oid": "68333512a43d6bc3d5fda348"
+  },
+  "rarity": "common",
+  "upgrade_requirements": [
+    {
+      "level": 1,
+      "card": 100,
+      "gold": 100,
+      "exp": 20
+    },
+    {
+      "level": 2,
+      "card": 400,
+      "gold": 200,
+      "exp": 30
+    },
+    {
+      "level": 3,
+      "card": 2000,
+      "gold": 400,
+      "exp": 40
+    },
+    {
+      "level": 4,
+      "card": 4000,
+      "gold": 800,
+      "exp": 50
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "68333512a43d6bc3d5fda349"
+  },
+  "rarity": "rare",
+  "upgrade_requirements": [
+    {
+      "level": 1,
+      "card": 25,
+      "gold": 300,
+      "exp": 100
+    },
+    {
+      "level": 2,
+      "card": 50,
+      "gold": 600,
+      "exp": 150
+    },
+    {
+      "level": 3,
+      "card": 100,
+      "gold": 900,
+      "exp": 250
+    },
+    {
+      "level": 4,
+      "card": 400,
+      "gold": 1500,
+      "exp": 400
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "68333512a43d6bc3d5fda34a"
+  },
+  "rarity": "epic",
+  "upgrade_requirements": [
+    {
+      "level": 1,
+      "card": 5,
+      "gold": 800,
+      "exp": 500
+    },
+    {
+      "level": 2,
+      "card": 10,
+      "gold": 1600,
+      "exp": 600
+    },
+    {
+      "level": 3,
+      "card": 20,
+      "gold": 2400,
+      "exp": 700
+    },
+    {
+      "level": 4,
+      "card": 80,
+      "gold": 5000,
+      "exp": 800
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "68333512a43d6bc3d5fda34b"
+  },
+  "rarity": "legendary",
+  "upgrade_requirements": [
+    {
+      "level": 1,
+      "card": 1,
+      "gold": 2000,
+      "exp": 650
+    },
+    {
+      "level": 2,
+      "card": 2,
+      "gold": 3000,
+      "exp": 800
+    },
+    {
+      "level": 3,
+      "card": 4,
+      "gold": 5000,
+      "exp": 1200
+    },
+    {
+      "level": 4,
+      "card": 8,
+      "gold": 8000,
+      "exp": 1800
+    }
+  ]
+}]
